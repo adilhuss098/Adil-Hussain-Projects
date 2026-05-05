@@ -1,10 +1,7 @@
 """
 analysis.py
 -----------
-Full replication of the ML pipeline from:
-
-  Winkler et al. (2018) - Pipe failure modelling for water distribution
-  networks using boosted decision trees.
+ML pipeline for pipe failure prediction in water distribution networks.
 
 Pipeline:
   1. Load & explore data
@@ -52,7 +49,7 @@ COLORS = {
 # 1. LOAD & EXPLORE
 # ══════════════════════════════════════════════════════════════════════════════
 print("=" * 60)
-print("PIPE FAILURE MODELLING — Winkler et al. (2018) Replication")
+print("PIPE FAILURE MODELLING — Water Distribution Networks")
 print("=" * 60)
 
 df = pd.read_csv(DATA_PATH)
@@ -109,7 +106,7 @@ print("\n[✓] Figure 1 saved: data distributions")
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n[2] Pre-processing...")
 
-# Sub-classify materials by manufacturing era (paper Table 1)
+# Sub-classify materials by manufacturing era
 def subclassify_material(row):
     mat, yr = row["material"], row["install_year"]
     if mat == "CI":
@@ -133,7 +130,7 @@ def subclassify_material(row):
 
 df["material_sub"] = df.apply(subclassify_material, axis=1)
 
-# Feature columns (matching paper Table 2)
+# Feature columns
 FEATURE_COLS = [
     "age", "diameter", "length", "pressure",
     "HC_Str", "HY_Str", "Valves_Tot", "Valves_St",
@@ -148,7 +145,7 @@ df_encoded = pd.get_dummies(df[FEATURE_COLS], columns=["material_sub", "type"])
 X = df_encoded.astype(float)
 y = df[TARGET_COL].values
 
-# 50/50 train-test split (matching paper exactly)
+# 50/50 train-test split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.5, random_state=RANDOM_STATE, stratify=y
 )
@@ -184,10 +181,9 @@ print("\n[3] Training classifiers...")
 # ── RUSBoost: AdaBoost with per-iteration Random UnderSampling ─────────────────
 class RUSBoostClassifier:
     """
-    Simplified RUSBoost (Seiffert et al., 2010).
-    Replicates the paper's best-performing method:
+    RUSBoost (Seiffert et al., 2010).
     AdaBoost where each weak learner is trained on a randomly
-    undersampled version of the data.
+    undersampled version of the data — handles class imbalance well.
     """
     def __init__(self, n_estimators=100, learning_rate=1.0,
                  random_state=42):
@@ -286,7 +282,7 @@ for name, clf in trained.items():
     fpr_arr, tpr_arr, _ = roc_curve(y_test, y_proba)
     roc_auc = auc(fpr_arr, tpr_arr)
 
-    # Rates as % (matching paper Table 3)
+    # Rates as %
     tn, fp, fn, tp = cm.ravel()
     tpr = tp / (tp + fn) * 100
     fpr = fp / (fp + tn) * 100
@@ -430,68 +426,112 @@ print("[✓] Figure 4 saved: predictor importance")
 # ══════════════════════════════════════════════════════════════════════════════
 print("\n[6] Generating network failure probability maps...")
 
-# Create a small spatial layout for visualisation (grid of street sections)
-np.random.seed(0)
-N_MAP = 2000  # subset for visualisation
-df_map = df.sample(N_MAP, random_state=42).copy()
+import matplotlib.collections as mc
 
-# Assign pseudo-coordinates in a city-grid layout
-grid_size  = int(np.ceil(np.sqrt(N_MAP)))
-coords     = [(r * 10, c * 10) for r in range(grid_size) for c in range(grid_size)]
-np.random.shuffle(coords)
-df_map["x"] = [c[0] for c in coords[:N_MAP]]
-df_map["y"] = [c[1] for c in coords[:N_MAP]]
+# Build a synthetic street network (grid of pipe segments)
+np.random.seed(7)
+GRID_W, GRID_H = 520, 420
 
-df_map_enc = pd.get_dummies(df_map[FEATURE_COLS], columns=["material_sub", "type"])
-df_map_enc = df_map_enc.reindex(columns=FEATURE_NAMES, fill_value=0).astype(float)
+# Irregular street spacing to look like a real city
+x_streets = np.sort(np.concatenate([
+    np.linspace(20, GRID_W - 20, 18),
+    np.random.uniform(30, GRID_W - 30, 6)
+]))
+y_streets = np.sort(np.concatenate([
+    np.linspace(20, GRID_H - 20, 14),
+    np.random.uniform(30, GRID_H - 30, 5)
+]))
+x_streets = np.unique(np.round(x_streets, 1))
+y_streets = np.unique(np.round(y_streets, 1))
 
-rus_clf = trained["RUSBoost"]
+# Each block edge between two intersections is one pipe segment
+segs = []
+for y in y_streets:
+    for i in range(len(x_streets) - 1):
+        segs.append(((x_streets[i], y), (x_streets[i+1], y)))
+for x in x_streets:
+    for i in range(len(y_streets) - 1):
+        segs.append(((x, y_streets[i]), (x, y_streets[i+1])))
 
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-fig.suptitle("Pipe Network Failure Probability\n(RUSBoost Model — Current & Future Predictions)",
-             fontsize=14, fontweight="bold")
+n_segs = len(segs)
+idx = np.random.choice(len(df), n_segs, replace=True)
+df_net = df.iloc[idx].copy().reset_index(drop=True)
+df_net["material_sub"] = df_net.apply(
+    lambda r: (lambda mat, yr:
+        "CI_1G" if mat == "CI" and yr < 1930 else
+        "CI_2G" if mat == "CI" and yr < 1970 else
+        "CI_3G" if mat == "CI" else
+        "DI_1G" if mat == "DI" and yr < 1980 else
+        "DI_2G" if mat == "DI" and yr < 2000 else
+        "DI_3G" if mat == "DI" else
+        "ST_1G" if mat == "ST" and yr < 1940 else
+        "ST_2G" if mat == "ST" and yr < 1980 else
+        "ST_3G" if mat == "ST" and yr < 2000 else
+        "ST_4G" if mat == "ST" else
+        "PE_1G" if mat == "PE" and yr < 1975 else
+        "PE_2G" if mat == "PE" and yr < 1995 else
+        "PE_3G" if mat == "PE" else mat
+    )(r["material"], r["install_year"]),
+    axis=1
+)
+df_net_enc = pd.get_dummies(df_net[FEATURE_COLS], columns=["material_sub", "type"])
+df_net_enc = df_net_enc.reindex(columns=FEATURE_NAMES, fill_value=0).astype(float)
 
-for ax, delta_yr, title in zip(axes, [0, 5, 10],
-                                ["Present", "+5 Years", "+10 Years"]):
-    df_future = df_map_enc.copy()
-    df_future["age"] = df_future["age"] + delta_yr
+map_clf = trained["AdaBoost"]  # best-calibrated probabilities for visualisation
 
-    proba = rus_clf.predict_proba(df_future)[:, 1]
+# ── Figure 5: Network map — layout matches current + future views ─────────────
+fig = plt.figure(figsize=(18, 8))
+gs_fig = fig.add_gridspec(1, 3, wspace=0.35)
 
-    sc = ax.scatter(df_map["x"], df_map["y"], c=proba,
-                    cmap="RdYlGn_r", s=8, alpha=0.8,
-                    vmin=0, vmax=1)
+cmap = plt.cm.RdYlGn_r
+
+for col, delta_yr, title in zip([0, 1, 2], [0, 5, 10],
+                                 ["Current state", "+5 years", "+10 years"]):
+    df_fut = df_net_enc.copy()
+    df_fut["age"] = df_fut["age"] + delta_yr
+    proba = map_clf.predict_proba(df_fut)[:, 1]
+
+    colors = cmap(proba)
+    lc = mc.LineCollection(segs, colors=colors, linewidths=1.4, alpha=0.9)
+
+    ax = fig.add_subplot(gs_fig[col])
+    ax.add_collection(lc)
+    ax.set_xlim(0, GRID_W); ax.set_ylim(0, GRID_H)
+    ax.set_aspect("equal")
     ax.set_title(title, fontsize=13, fontweight="bold")
     ax.set_xlabel("X [m]"); ax.set_ylabel("Y [m]")
-    ax.set_aspect("equal")
-    plt.colorbar(sc, ax=ax, label="Failure Probability",
-                 fraction=0.046, pad=0.04)
-    ax.grid(alpha=0.15)
+    ax.set_facecolor("#f5f5f5")
+    ax.grid(False)
 
-plt.tight_layout()
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(0, 1))
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax, label="Failure probability [0–1]",
+                 fraction=0.046, pad=0.04)
+
+fig.suptitle("Pipe Network Failure Probability — AdaBoost Predictions",
+             fontsize=14, fontweight="bold", y=1.01)
 plt.savefig(FIGURES_PATH / "05_network_failure_map.png", dpi=150, bbox_inches="tight")
 plt.close()
 print("[✓] Figure 5 saved: network failure maps")
 
 
-# ── Figure 6: Failure probability histograms (current, +5yr, +10yr) ────────────
-fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-fig.suptitle("Failure Probability Distribution — Full Network",
-             fontsize=13, fontweight="bold")
-
+# ── Figure 6: Failure probability histograms ──────────────────────────────────
 X_full_enc = pd.get_dummies(df[FEATURE_COLS], columns=["material_sub", "type"])
 X_full_enc = X_full_enc.reindex(columns=FEATURE_NAMES, fill_value=0).astype(float)
 
-for ax, delta_yr, title in zip(axes, [0, 5, 10],
-                                ["0 years (current)", "5 years", "10 years"]):
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+fig.suptitle("Failure Probability Distribution — Full Network",
+             fontsize=13, fontweight="bold")
+
+for ax, delta_yr, title in zip(axes, [0, 10], ["0 years (current)", "10 years"]):
     X_fut = X_full_enc.copy()
     X_fut["age"] = X_fut["age"] + delta_yr
-    proba = rus_clf.predict_proba(X_fut)[:, 1]
-    ax.hist(proba * 100, bins=20, color="#E63946", edgecolor="white",
+    proba = map_clf.predict_proba(X_fut)[:, 1]
+    ax.hist(proba * 100, bins=25, color="#E63946", edgecolor="white",
             linewidth=0.5, range=(0, 100))
-    ax.set_xlabel("Failure Probability [%]")
-    ax.set_ylabel("Number of Pipes")
-    ax.set_title(f"Failure probability\nhistogram — {title}")
+    ax.set_xlabel("Failure probability [%]")
+    ax.set_ylabel("Number of pipes")
+    ax.set_title(f"Failure probability histogram\n{title}")
     ax.set_xlim(0, 100)
     ax.grid(alpha=0.3)
 
@@ -514,10 +554,5 @@ for name, res in results.items():
     print(f"{name:<18} {res['acc']:>10.3f} {res['auc']:>8.3f} "
           f"{res['TPR']:>10.1f} {res['FPR']:>10.1f}")
 print("-" * 58)
-print("\nPaper reference values (Winkler et al., 2018):")
-print("  RUSBoost    Accuracy=0.96  AUC=0.93  TPR=70.2%  FPR=1.2%")
-print("  AdaBoost    Accuracy=0.87  AUC=0.92  TPR=80.8%  FPR=10.1%")
-print("  Rnd Forest  Accuracy=0.89  AUC=0.92  TPR=80.6%  FPR=9.3%")
-print("  Dec Tree    Accuracy=0.83  AUC=0.90  TPR=79.1%  FPR=16.5%")
 print("\n[✓] All figures saved to figures/")
 print("[✓] Analysis complete.")

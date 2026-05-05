@@ -12,12 +12,12 @@ ML project predicting pipe failures in water distribution networks. Built and te
 
 | Classifier | Accuracy | AUC | TPR | FPR |
 |---|---|---|---|---|
-| **RUSBoost** | 0.724 | 0.617 | 48.7% | 25.4% |
-| AdaBoost | 0.665 | 0.671 | 60.2% | 32.9% |
-| Random Forest | 0.621 | 0.648 | 59.8% | 37.7% |
-| Decision Tree | 0.658 | 0.599 | 54.3% | 33.1% |
+| RUSBoost | 0.672 | 0.547 | 39.7% | 30.2% |
+| **AdaBoost** | 0.565 | 0.633 | 64.2% | 44.3% |
+| Random Forest | 0.556 | 0.600 | 59.0% | 44.8% |
+| Decision Tree | 0.557 | 0.557 | 57.6% | 44.5% |
 
-RUSBoost came out on top for accuracy — it handles the class imbalance well since it undersamples the majority class at each boosting iteration.
+AdaBoost had the best AUC (0.633) and highest TPR — it catches more failing pipes than the other classifiers. RUSBoost had the best raw accuracy but a lower TPR, which matters more here since missing a real failure is costlier than a false alarm.
 
 ---
 
@@ -35,7 +35,7 @@ RUSBoost came out on top for accuracy — it handles the class imbalance well si
 ### Feature Importance
 ![Feature Importance](figures/04_predictor_importance.png)
 
-### Network Failure Probability Maps (Present / +5yr / +10yr)
+### Network Failure Probability Maps — AdaBoost (Present / +5yr / +10yr)
 ![Failure Maps](figures/05_network_failure_map.png)
 
 ### Failure Probability Histograms

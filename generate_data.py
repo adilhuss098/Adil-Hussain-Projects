@@ -25,7 +25,17 @@ type_weights = [0.55, 0.38, 0.07]
 material = np.random.choice(materials, size=N, p=mat_weights)
 pipe_type = np.random.choice(pipe_types, size=N, p=type_weights)
 
-install_year = np.random.randint(1900, 2020, size=N)
+# Realistic install year: large build-out in 1950s-80s, tapering off earlier/later
+# Mix of old legacy pipes + mid-century bulk + some modern replacements
+install_year = np.concatenate([
+    np.random.normal(1955, 12, size=int(N * 0.28)).astype(int),  # post-war build
+    np.random.normal(1972, 10, size=int(N * 0.32)).astype(int),  # 70s expansion
+    np.random.normal(1988, 8,  size=int(N * 0.22)).astype(int),  # 80s/90s
+    np.random.normal(2005, 6,  size=int(N * 0.12)).astype(int),  # modern
+    np.random.normal(1930, 15, size=N - int(N*0.28) - int(N*0.32) - int(N*0.22) - int(N*0.12)).astype(int),  # legacy
+])
+np.random.shuffle(install_year)
+install_year = np.clip(install_year, 1900, 2019)
 current_year = 2020
 age = current_year - install_year
 
