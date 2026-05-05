@@ -1,32 +1,27 @@
-# 🔧 Pipe Failure Modelling for Water Distribution Networks
+# Pipe Failure Modelling for Water Distribution Networks
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-orange?logo=scikit-learn)
-![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen)
 
----
-
-## 📌 Project Summary
-
-Water utilities manage thousands of kilometres of buried pipes that gradually deteriorate and fail — often without warning. Predicting **which pipes are most likely to fail** allows engineers to plan proactive repairs rather than costly emergency responses.
-
-This project implements and benchmarks four machine learning classifiers on a realistic pipe network dataset (39,637 pipes, 8.63% failure rate).
+ML project predicting pipe failures in water distribution networks. Built and tested four classifiers on a dataset of ~40k pipes (8.6% failure rate) to see which best identifies pipes at risk.
 
 ---
 
-## 📊 Results
+## Results
 
 | Classifier | Accuracy | AUC | TPR | FPR |
 |---|---|---|---|---|
-| **RUSBoost** ⭐ | 0.724 | 0.617 | 48.7% | 25.4% |
+| **RUSBoost** | 0.724 | 0.617 | 48.7% | 25.4% |
 | AdaBoost | 0.665 | 0.671 | 60.2% | 32.9% |
 | Random Forest | 0.621 | 0.648 | 59.8% | 37.7% |
 | Decision Tree | 0.658 | 0.599 | 54.3% | 33.1% |
 
+RUSBoost came out on top for accuracy — it handles the class imbalance well since it undersamples the majority class at each boosting iteration.
+
 ---
 
-## 🖼️ Visualisations
+## Visualisations
 
 ### Data Distributions
 ![Data Distributions](figures/01_data_distributions.png)
@@ -40,7 +35,7 @@ This project implements and benchmarks four machine learning classifiers on a re
 ### Feature Importance
 ![Feature Importance](figures/04_predictor_importance.png)
 
-### Network Failure Probability Maps (Present → +5yr → +10yr)
+### Network Failure Probability Maps (Present / +5yr / +10yr)
 ![Failure Maps](figures/05_network_failure_map.png)
 
 ### Failure Probability Histograms
@@ -48,93 +43,50 @@ This project implements and benchmarks four machine learning classifiers on a re
 
 ---
 
-## 🗂️ Repository Structure
+## How to run
 
-```
-Adil-Hussain-Projects/
-│
-├── pipe_failure_modelling.ipynb   ← Main notebook (start here)
-│
-├── analysis.py                    ← Full ML pipeline (script version)
-│
-├── data/
-│   └── pipe_network.csv           ← Generated synthetic dataset
-│
-├── figures/                       ← All output figures (auto-generated)
-│   ├── 01_data_distributions.png
-│   ├── 02_confusion_matrices.png
-│   ├── 03_roc_curves.png
-│   ├── 04_predictor_importance.png
-│   ├── 05_network_failure_map.png
-│   └── 06_failure_probability_histograms.png
-│
-└── requirements.txt
-```
-
----
-
-## ⚙️ How to Run
-
-### 1. Clone the repository
 ```bash
 git clone https://github.com/adilhuss098/Adil-Hussain-Projects.git
 cd Adil-Hussain-Projects
-```
-
-### 2. Install dependencies
-```bash
 pip install -r requirements.txt
-```
-
-### 3. Open the notebook
-```bash
+python generate_data.py      # creates data/pipe_network.csv
 jupyter notebook pipe_failure_modelling.ipynb
 ```
-Or run the full analysis as a script:
+
+or just run everything as a script:
 ```bash
 python analysis.py
 ```
 
 ---
 
-## 🧠 Methods
+## Methods
 
-### Dataset
-| Property | Value |
-|---|---|
-| Total pipes | 39,637 |
-| Failure rate | 8.63% |
-| Pipe materials | 9 (AC, CI, DI, GRP, PP, PE, PVC, Pb, ST) |
-| Sub-classified materials | 17 |
-| Features | 12 (age, diameter, length, pressure, type, material, historical failures, network context) |
-| Train / Test split | 50% / 50% |
+**Dataset:** 39,637 pipes, 9 material types (AC, CI, DI, GRP, PP, PE, PVC, Pb, ST), 12 features including age, diameter, length, pressure, valve counts, and failure history. 50/50 train/test split.
 
-### Classifiers
-- **Decision Tree** — Baseline, CART algorithm with Gini impurity
-- **Random Forest** — Bagging ensemble of 100 decision trees
-- **AdaBoost** — Boosting with adaptive sample weighting (AdaBoost.M1)
-- **RUSBoost** — AdaBoost with per-iteration Random UnderSampling for imbalanced data
+**Classifiers:**
+- Decision Tree (CART, Gini impurity) — baseline
+- Random Forest — 100 trees
+- AdaBoost — adaptive sample weighting
+- RUSBoost — AdaBoost + random undersampling per iteration for imbalanced data
 
-### Handling Class Imbalance
-The dataset is **skewed** (~9:1 ratio of healthy to failed pipes). Two strategies used:
-- **PSRS (Proportionate Stratified Random Sampling)** — for DT, RF, AdaBoost
-- **RUS (Random UnderSampling per iteration)** — embedded in RUSBoost
+**Class imbalance:** ~9:1 healthy-to-failed ratio. Used PSRS (stratified undersampling) for DT/RF/AdaBoost, and RUS embedded in each RUSBoost iteration.
 
-### Evaluation Metrics
-- **Confusion matrix**
-- **ROC curve and AUC** — AUC > 0.9 = Outstanding (Hosmer & Lemeshow, 2000)
-- **Predictor importance** — weighted feature contribution across ensemble
+**Evaluation:** confusion matrix, ROC/AUC, predictor importance.
 
 ---
 
-## 📚 References
+## Repo structure
 
-- Seiffert, C. et al. (2010). *RUSBoost: A hybrid approach to alleviating class imbalance.* IEEE Trans. Systems, Man, and Cybernetics, 40(1), 185–197.
-- Breiman, L. (2001). *Random forests.* Machine Learning, 45(1), 5–32.
-- Freund, Y. & Schapire, R.E. (1997). *A decision-theoretic generalization of on-line learning and an application to boosting.* J. Computer and System Sciences, 55(1), 119–139.
+```
+├── pipe_failure_modelling.ipynb   <- main notebook
+├── analysis.py                    <- script version
+├── generate_data.py               <- synthetic data generator
+├── data/pipe_network.csv
+├── figures/
+└── requirements.txt
+```
 
 ---
 
-## 📄 License
-
-MIT License — free to use and adapt with attribution.
+MIT License
