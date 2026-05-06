@@ -4,7 +4,7 @@
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-orange?logo=scikit-learn)
 ![Status](https://img.shields.io/badge/Status-Complete-brightgreen)
 
-ML project predicting pipe failures in water distribution networks. Built and tested four classifiers on a dataset of ~40k pipes (8.6% failure rate) to see which best identifies pipes at risk.
+ML project predicting water main failures using real municipal data from the City of Kitchener, Ontario (open data portal). Four classifiers benchmarked on 15,768 pipes with recorded break history going back to 1985.
 
 ---
 
@@ -12,12 +12,12 @@ ML project predicting pipe failures in water distribution networks. Built and te
 
 | Classifier | Accuracy | AUC | TPR | FPR |
 |---|---|---|---|---|
-| RUSBoost | 0.672 | 0.547 | 39.7% | 30.2% |
-| **AdaBoost** | 0.565 | 0.633 | 64.2% | 44.3% |
-| Random Forest | 0.556 | 0.600 | 59.0% | 44.8% |
-| Decision Tree | 0.557 | 0.557 | 57.6% | 44.5% |
+| **Random Forest** | 0.764 | 0.848 | 75.0% | 23.2% |
+| AdaBoost | 0.750 | 0.821 | 72.8% | 24.4% |
+| Decision Tree | 0.747 | 0.786 | 73.1% | 24.9% |
+| RUSBoost | 0.791 | 0.677 | 49.7% | 12.8% |
 
-AdaBoost had the best AUC (0.633) and highest TPR — it catches more failing pipes than the other classifiers. RUSBoost had the best raw accuracy but a lower TPR, which matters more here since missing a real failure is costlier than a false alarm.
+Random Forest had the best AUC (0.848) and TPR — it catches the most at-risk pipes. RUSBoost had the best accuracy but lower TPR, which matters less here since missing a real failure is more costly than a false alarm.
 
 ---
 
@@ -35,11 +35,24 @@ AdaBoost had the best AUC (0.633) and highest TPR — it catches more failing pi
 ### Feature Importance
 ![Feature Importance](figures/04_predictor_importance.png)
 
-### Network Failure Probability Maps — AdaBoost (Present / +5yr / +10yr)
+### Network Failure Probability Map — Kitchener, Ontario (Present / +5yr / +10yr)
 ![Failure Maps](figures/05_network_failure_map.png)
 
 ### Failure Probability Histograms
 ![Histograms](figures/06_failure_probability_histograms.png)
+
+---
+
+## Dataset
+
+Real open data from the City of Kitchener GIS portal:
+- **Water_Mains.csv** — 15,903 pipes with material, diameter, length, install date, condition score
+- **Water_Main_Breaks.csv** — 2,766 recorded break incidents (1985–2023)
+- **Failure label** — binary: pipe has had at least one recorded break
+
+Failure rate: 21.6% — higher than typical studies because Kitchener has a significant proportion of older cast iron and ductile iron mains installed in the 1950s–70s.
+
+Features used: age, diameter, length, material, condition score, criticality, pressure zone.
 
 ---
 
@@ -49,11 +62,11 @@ AdaBoost had the best AUC (0.633) and highest TPR — it catches more failing pi
 git clone https://github.com/adilhuss098/Adil-Hussain-Projects.git
 cd Adil-Hussain-Projects
 pip install -r requirements.txt
-python generate_data.py      # creates data/pipe_network.csv
+python prepare_real_data.py   # builds data/pipe_network.csv from raw files
 jupyter notebook pipe_failure_modelling.ipynb
 ```
 
-or just run everything as a script:
+or run as a script:
 ```bash
 python analysis.py
 ```
@@ -62,17 +75,17 @@ python analysis.py
 
 ## Methods
 
-**Dataset:** 39,637 pipes, 9 material types (AC, CI, DI, GRP, PP, PE, PVC, Pb, ST), 12 features including age, diameter, length, pressure, valve counts, and failure history. 50/50 train/test split.
-
 **Classifiers:**
 - Decision Tree (CART, Gini impurity) — baseline
-- Random Forest — 100 trees
+- Random Forest — 100 trees, best overall AUC
 - AdaBoost — adaptive sample weighting
 - RUSBoost — AdaBoost + random undersampling per iteration for imbalanced data
 
-**Class imbalance:** ~9:1 healthy-to-failed ratio. Used PSRS (stratified undersampling) for DT/RF/AdaBoost, and RUS embedded in each RUSBoost iteration.
+**Class imbalance:** ~78:22 healthy-to-failed ratio. Used stratified undersampling (PSRS) for DT/RF/AdaBoost; RUS embedded per iteration in RUSBoost.
 
-**Evaluation:** confusion matrix, ROC/AUC, predictor importance.
+**Evaluation:** confusion matrix, ROC/AUC, feature importance.
+
+**Network map:** AdaBoost model applied to all pipes with GPS coordinates — shows real Kitchener pipe locations coloured by predicted failure probability for current state and 5/10-year projections.
 
 ---
 
@@ -81,11 +94,21 @@ python analysis.py
 ```
 ├── pipe_failure_modelling.ipynb   <- main notebook
 ├── analysis.py                    <- script version
-├── generate_data.py               <- synthetic data generator
-├── data/pipe_network.csv
+├── prepare_real_data.py           <- builds dataset from raw files
+├── data/
+│   ├── pipe_network.csv           <- processed dataset
+│   └── raw/                       <- City of Kitchener open data
 ├── figures/
 └── requirements.txt
 ```
+
+---
+
+## References
+
+- Seiffert, C. et al. (2010). *RUSBoost: A hybrid approach to alleviating class imbalance.* IEEE Trans. Systems, Man, and Cybernetics, 40(1), 185–197.
+- Breiman, L. (2001). *Random forests.* Machine Learning, 45(1), 5–32.
+- City of Kitchener Open Data Portal — Water Mains & Water Main Breaks datasets.
 
 ---
 
