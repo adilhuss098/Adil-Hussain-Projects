@@ -332,26 +332,45 @@ def aggregate_importances(importances, feature_names):
                 break
     return agg
 
-fig, ax = plt.subplots(figsize=(12, 6))
-x      = np.arange(len(base_features))
-width  = 0.2
-offset = [-1.5, -0.5, 0.5, 1.5]
+# Plot DT/RF/AdaBoost together; RUSBoost separately since it concentrates
+# entirely on condition_score and would crush the scale of the others
+fig, axes = plt.subplots(1, 2, figsize=(16, 6),
+                         gridspec_kw={"width_ratios": [3, 1]})
+fig.suptitle("Feature Importance by Classifier", fontsize=13, fontweight="bold")
 
-for i, (name, clf) in enumerate(trained.items()):
+main_clfs = ["Decision Tree", "Random Forest", "AdaBoost"]
+x      = np.arange(len(base_features))
+width  = 0.25
+offset = [-1, 0, 1]
+
+for i, name in enumerate(main_clfs):
+    clf = trained[name]
     imp = clf.feature_importances_
     agg = aggregate_importances(imp, FEATURE_NAMES)
     if i == 0:
         sorted_keys = sorted(agg, key=lambda k: agg[k], reverse=True)
     vals = [agg[k] for k in sorted_keys]
-    ax.bar(x + offset[i] * width, vals, width,
-           label=name, color=COLORS[name], alpha=0.85, edgecolor="white")
+    axes[0].bar(x + offset[i] * width, vals, width,
+                label=name, color=COLORS[name], alpha=0.85, edgecolor="white")
 
-ax.set_xticks(x)
-ax.set_xticklabels(sorted_keys, rotation=45, ha="right", fontsize=10)
-ax.set_ylabel("Predictor Importance", fontsize=12)
-ax.set_title("Feature Importance by Classifier", fontsize=13, fontweight="bold")
-ax.legend(fontsize=10)
-ax.grid(axis="y", alpha=0.3)
+axes[0].set_xticks(x)
+axes[0].set_xticklabels(sorted_keys, rotation=45, ha="right", fontsize=10)
+axes[0].set_ylabel("Predictor Importance", fontsize=12)
+axes[0].set_title("Decision Tree, Random Forest, AdaBoost", fontsize=11)
+axes[0].legend(fontsize=10)
+axes[0].grid(axis="y", alpha=0.3)
+
+# RUSBoost panel — shows it leans almost entirely on condition_score
+rus_agg = aggregate_importances(trained["RUSBoost"].feature_importances_, FEATURE_NAMES)
+rus_vals = [rus_agg[k] for k in sorted_keys]
+axes[1].bar(x, rus_vals, 0.6, color=COLORS["RUSBoost"], alpha=0.85, edgecolor="white")
+axes[1].set_xticks(x)
+axes[1].set_xticklabels(sorted_keys, rotation=45, ha="right", fontsize=10)
+axes[1].set_ylabel("Predictor Importance", fontsize=12)
+axes[1].set_title("RUSBoost", fontsize=11)
+axes[1].grid(axis="y", alpha=0.3)
+axes[1].set_ylim(0, 1.05)
+
 plt.tight_layout()
 plt.savefig(FIGURES_PATH / "04_predictor_importance.png", dpi=150, bbox_inches="tight")
 plt.close()
@@ -376,9 +395,8 @@ df_map_enc = df_map_enc.reindex(columns=FEATURE_NAMES, fill_value=0).astype(floa
 cmap = plt.cm.RdYlGn_r
 
 fig, axes = plt.subplots(1, 3, figsize=(18, 7))
-fig.suptitle("Pipe Network Failure Probability — Kitchener, Ontario\n"
-             "(AdaBoost model — pipes with recorded break history)",
-             fontsize=13, fontweight="bold", y=1.02)
+fig.suptitle("Predicted Failure Probability — Kitchener, Ontario Water Mains",
+             fontsize=13, fontweight="bold", y=1.01)
 
 for ax, delta_yr, title in zip(axes, [0, 5, 10],
                                 ["Current state", "+5 years", "+10 years"]):
@@ -389,15 +407,17 @@ for ax, delta_yr, title in zip(axes, [0, 5, 10],
 
     sc = ax.scatter(
         df_map["longitude"], df_map["latitude"],
-        c=proba, cmap=cmap, s=6, alpha=0.75,
+        c=proba, cmap=cmap, s=8, alpha=0.8,
         vmin=0, vmax=1
     )
     ax.set_title(title, fontsize=13, fontweight="bold")
-    ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
-    ax.set_facecolor("#f0f0f0")
+    ax.set_facecolor("#e8e8e8")
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.annotate("N ↑", xy=(0.02, 0.96), xycoords="axes fraction",
+                fontsize=9, va="top")
     plt.colorbar(sc, ax=ax, label="Failure probability",
                  fraction=0.046, pad=0.04)
-    ax.grid(alpha=0.15)
+    ax.grid(False)
 
 plt.tight_layout()
 plt.savefig(FIGURES_PATH / "05_network_failure_map.png", dpi=150, bbox_inches="tight")
